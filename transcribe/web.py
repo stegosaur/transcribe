@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import logging
 import queue
 import re
 import shutil
@@ -217,7 +218,7 @@ def worker(engine_box: dict, jobs: Jobs):
 
 def main(argv=None):
     p = argparse.ArgumentParser(prog="transcribe-web", description="Web UI for transcribe")
-    p.add_argument("--host", default="127.0.0.1", help="use 0.0.0.0 to allow other machines on your LAN")
+    p.add_argument("--host", default="0.0.0.0", help="address to listen on (default 0.0.0.0 = whole LAN; 127.0.0.1 = this machine only)")
     p.add_argument("--port", type=int, default=8765)
     p.add_argument("--data-dir", default=str(Path.home() / ".local" / "share" / "transcribe" / "jobs"),
                    help="where uploads and finished transcripts are kept")
@@ -251,6 +252,9 @@ def main(argv=None):
     threading.Thread(target=load, daemon=True).start()
     threading.Thread(target=worker, args=(engine_box, jobs), daemon=True).start()
 
+    # Werkzeug logs every request; the UI polls once a second, which would
+    # flood the journal. Keep warnings and errors only.
+    logging.getLogger("werkzeug").setLevel(logging.WARNING)
     print(f"transcribe web UI on http://{args.host}:{args.port}  (jobs in {args.data_dir})", file=sys.stderr)
     create_app(engine_box, jobs).run(host=args.host, port=args.port, threaded=True)
 

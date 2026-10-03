@@ -89,8 +89,8 @@ and pyannote.
 ### Web UI
 
 ```sh
-uv run transcribe-web            # http://127.0.0.1:8765
-uv run transcribe-web --host 0.0.0.0 --port 8765   # reachable from your LAN
+uv run transcribe-web                        # http://<this machine>:8765, reachable from your LAN
+uv run transcribe-web --host 127.0.0.1       # this machine only
 ```
 
 Uploads and finished transcripts are stored in `~/.local/share/transcribe/jobs`
@@ -124,25 +124,32 @@ uv run transcribe podcast.mp3 --stdout
 
 The JSON output includes word-level timestamps.
 
-## Running the web UI as a service
+## Running as a system service
 
-```ini
-# ~/.config/systemd/user/transcribe.service
-[Unit]
-Description=transcribe web UI
-
-[Service]
-WorkingDirectory=%h/transcribe
-ExecStart=%h/.local/bin/uv run transcribe-web
-Restart=on-failure
-
-[Install]
-WantedBy=default.target
-```
+`packaging/install.sh` installs a copy to `/opt/transcribe` and adds a root
+systemd service. The service is **not** started at boot; it runs only when you
+start it:
 
 ```sh
-systemctl --user daemon-reload && systemctl --user enable --now transcribe
+sudo packaging/install.sh          # install, or update /opt/transcribe to this checkout
+
+sudo service transcribe start      # then open http://<this machine>:8765
+sudo service transcribe stop       # frees the ~4 GB of VRAM it holds
+sudo service transcribe status
+journalctl -u transcribe -f        # logs
 ```
+
+Settings live in `/etc/default/transcribe`: host and port, Whisper model,
+batch size, data directory, and Hugging Face token. Restart the service after
+editing it. Re-running the installer never overwrites this file.
+
+| Path | |
+|---|---|
+| `/opt/transcribe` | code and virtualenv |
+| `/etc/default/transcribe` | configuration (root-only, mode 600) |
+| `/etc/systemd/system/transcribe.service` | unit file |
+| `/var/lib/transcribe/jobs` | uploads and finished transcripts |
+| `/var/lib/transcribe/huggingface`, `/var/lib/transcribe/torch` | model caches |
 
 ## Troubleshooting
 

@@ -1,0 +1,35 @@
+# Configuration for the transcribe web UI service (transcribe.service).
+# After editing:  sudo service transcribe restart
+
+# Address and port to listen on. 0.0.0.0 = reachable from your LAN,
+# 127.0.0.1 = this machine only.
+HOST=0.0.0.0
+PORT=8765
+
+# Whisper model: turbo, large-v3, medium, small, distil-large-v3 (English
+# only), or any Hugging Face Whisper model id.
+MODEL=turbo
+
+# pyannote diarization pipeline. "auto" = speaker-diarization-community-1,
+# falling back to speaker-diarization-3.1 if it isn't accessible.
+DIARIZATION_MODEL=auto
+
+# Whisper batch size. Lower it if you run out of GPU memory.
+BATCH_SIZE=16
+
+# auto, cuda (ROCm GPUs show up as cuda) or cpu.
+DEVICE=auto
+
+# Where uploads and finished transcripts are stored.
+DATA_DIR=/var/lib/transcribe/jobs
+
+# Hugging Face token, needed to download the gated pyannote models.
+# Keep this file root-only (chmod 600) while it contains a token.
+HF_TOKEN=
+
+# Model download caches.
+HF_HOME=/var/lib/transcribe/huggingface
+TORCH_HOME=/var/lib/transcribe/torch
+
+# Any other transcribe-web options, space-separated.
+EXTRA_ARGS=

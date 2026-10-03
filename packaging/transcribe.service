@@ -1,0 +1,19 @@
+[Unit]
+Description=transcribe web UI (speech to text with speaker diarization)
+Documentation=https://github.com/stegosaur/transcribe
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/default/transcribe
+ExecStart=/opt/transcribe/.venv/bin/transcribe-web --host ${HOST} --port ${PORT} --model ${MODEL} --diarization-model ${DIARIZATION_MODEL} --batch-size ${BATCH_SIZE} --device ${DEVICE} --data-dir ${DATA_DIR} $EXTRA_ARGS
+WorkingDirectory=/opt/transcribe
+StateDirectory=transcribe
+Restart=on-failure
+RestartSec=5
+# Models take ~15 s to load; first start also downloads several GB.
+TimeoutStartSec=infinity
+
+# No [Install] section on purpose: the service is never started at boot,
+# only by hand with `service transcribe start`.
