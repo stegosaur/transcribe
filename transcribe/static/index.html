@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Transcribe</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='3' y='12' width='4' height='8' rx='2' fill='%23e8590c'/><rect x='10' y='6' width='4' height='20' rx='2' fill='%23e8590c'/><rect x='17' y='9' width='4' height='14' rx='2' fill='%23e8590c'/><rect x='24' y='13' width='4' height='6' rx='2' fill='%23e8590c'/></svg>">
+<style>
+:root {
+  --bg: #f6f5f2; --panel: #ffffff; --text: #1d1c1a; --muted: #6b6862; --line: #e3e0da;
+  --accent: #e8590c; --accent-soft: #fdebe0; --ok: #2b8a3e; --err: #c92a2a; --hl: #fff3bf;
+  --s1: #1971c2; --s2: #c2255c; --s3: #2b8a3e; --s4: #9c36b5; --s5: #e67700; --s6: #0c8599; --s7: #5f3dc4; --s8: #a61e4d;
+  --radius: 10px; --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161514; --panel: #201f1d; --text: #ecebe8; --muted: #9b978f; --line: #34322f;
+    --accent: #ff8a3d; --accent-soft: #3a2518; --ok: #69db7c; --err: #ff6b6b; --hl: #3d3514;
+    --s1: #74c0fc; --s2: #f783ac; --s3: #8ce99a; --s4: #e599f7; --s5: #ffc078; --s6: #66d9e8; --s7: #b197fc; --s8: #faa2c1;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+header { display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 5; }
+header h1 { font-size: 17px; margin: 0; letter-spacing: .2px; }
+header .logo { display: flex; gap: 2px; align-items: center; height: 18px; }
+header .logo i { display: block; width: 3px; border-radius: 2px; background: var(--accent); }
+#status { margin-left: auto; font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 8px; text-align: right; }
+#status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+#status.ready .dot { background: var(--ok); }
+#status.error .dot { background: var(--err); }
+#status.loading .dot { background: var(--accent); animation: pulse 1s infinite alternate; }
+@keyframes pulse { to { opacity: .3; } }
+
+.layout { display: grid; grid-template-columns: 280px 1fr; min-height: calc(100vh - 53px); }
+aside { border-right: 1px solid var(--line); padding: 16px; background: var(--panel); }
+aside .new { width: 100%; padding: 9px; border-radius: var(--radius); border: 1px dashed var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+#history { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+#history li { padding: 8px 10px; border-radius: 8px; cursor: pointer; }
+#history li:hover { background: var(--bg); }
+#history li.active { background: var(--accent-soft); }
+#history .name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#history .meta { font-size: 12px; color: var(--muted); }
+#history .meta .err { color: var(--err); }
+#history .empty { color: var(--muted); font-size: 13px; cursor: default; }
+
+main { padding: 24px; max-width: 980px; width: 100%; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
+.drop { border: 2px dashed var(--line); border-radius: var(--radius); padding: 40px 20px; text-align: center; cursor: pointer; transition: .15s; }
+.drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.drop strong { display: block; font-size: 17px; margin-bottom: 4px; }
+.drop span { color: var(--muted); font-size: 14px; }
+.drop .file { margin-top: 12px; font-weight: 600; color: var(--accent); }
+.options { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin: 18px 0; }
+.options label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: var(--muted); }
+.options input[type=number], .options select { padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+.options .check { flex-direction: row; align-items: center; gap: 8px; color: var(--text); font-size: 14px; }
+.primary { background: var(--accent); color: #fff; border: 0; border-radius: var(--radius); padding: 10px 18px; font-weight: 600; }
+.primary:disabled { opacity: .45; cursor: not-allowed; }
+.ghost { text-decoration: none; color: inherit; background: none; border: 1px solid var(--line); border-radius: 8px; padding: 6px 11px; font-size: 13px; }
+.ghost:hover { border-color: var(--muted); }
+.ghost.danger:hover { border-color: var(--err); color: var(--err); }
+.hint { color: var(--muted); font-size: 13px; margin-top: 12px; }
+
+.jobhead { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.jobhead h2 { margin: 0; font-size: 20px; word-break: break-word; }
+.jobhead .sub { color: var(--muted); font-size: 13px; }
+.jobhead .actions { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+.progress { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; margin: 14px 0 8px; }
+.progress div { height: 100%; background: var(--accent); width: 0; transition: width .3s; }
+.progress.indeterminate div { width: 30%; animation: slide 1.2s infinite ease-in-out; }
+@keyframes slide { from { margin-left: -30%; } to { margin-left: 100%; } }
+.stage { color: var(--muted); font-size: 14px; }
+.error-box { color: var(--err); white-space: pre-wrap; font-family: var(--mono); font-size: 13px; }
+
+.player { position: sticky; top: 53px; z-index: 4; background: var(--bg); padding: 10px 0; }
+.player audio { width: 100%; }
+.speakers { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 14px; align-items: center; }
+.chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px 3px 8px; background: var(--panel); font-size: 13px; }
+.chip .sw { width: 10px; height: 10px; border-radius: 50%; }
+.chip input { border: 0; background: transparent; width: 9ch; padding: 0; outline: none; font-weight: 600; }
+.chip input:focus { border-bottom: 1px solid var(--accent); }
+.chip .stat { color: var(--muted); }
+.search { margin-left: auto; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); min-width: 180px; }
+
+.transcript { display: flex; flex-direction: column; gap: 14px; }
+.para { display: grid; grid-template-columns: 150px 1fr; gap: 12px; }
+.para .who { font-weight: 600; font-size: 14px; }
+.para .when { display: block; font-family: var(--mono); font-size: 12px; color: var(--muted); cursor: pointer; }
+.para .when:hover { color: var(--accent); }
+.para .text span { cursor: pointer; border-radius: 3px; }
+.para .text span:hover { background: var(--accent-soft); }
+.para .text span.now { background: var(--hl); }
+.para .text mark { background: var(--accent); color: #fff; border-radius: 2px; }
+.para.hidden { display: none; }
+.timings { color: var(--muted); font-size: 12px; margin-top: 22px; }
+
+@media (max-width: 760px) {
+  .layout { grid-template-columns: 1fr; }
+  aside { border-right: 0; border-bottom: 1px solid var(--line); }
+  #history { max-height: 160px; overflow: auto; }
+  main { padding: 16px; }
+  .para { grid-template-columns: 1fr; gap: 2px; }
+  .para .who { display: inline; }
+  .para .when { display: inline; margin-left: 8px; }
+  #status span { display: none; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo"><i style="height:7px"></i><i style="height:16px"></i><i style="height:11px"></i><i style="height:5px"></i></div>
+  <h1>Transcribe</h1>
+  <div id="status" class="loading"><span id="status-text">connecting…</span><div class="dot"></div></div>
+</header>
+<div class="layout">
+  <aside>
+    <button class="new" id="new-btn">+ New transcription</button>
+    <ul id="history"></ul>
+  </aside>
+  <main id="main"></main>
+</div>
+
+<template id="upload-tpl">
+  <div class="card">
+    <div class="drop" id="drop">
+      <strong>Drop an audio file here</strong>
+      <span>or click to choose — WAV, MP3, M4A, FLAC, OGG, or a video file</span>
+      <div class="file" id="file-name"></div>
+      <input type="file" id="file" accept="audio/*,video/*,.wav,.mp3,.m4a,.flac,.ogg,.opus,.aac,.wma,.mp4,.mkv,.webm" hidden>
+    </div>
+    <div class="options">
+      <label>Number of speakers
+        <select id="spk-mode">
+          <option value="auto">Detect automatically</option>
+          <option value="exact">Exactly…</option>
+          <option value="range">Between…</option>
+        </select>
+      </label>
+      <label id="spk-exact" hidden>Speakers <input type="number" id="num" min="1" max="20" value="2"></label>
+      <label id="spk-min" hidden>At least <input type="number" id="min" min="1" max="20" value="2"></label>
+      <label id="spk-max" hidden>At most <input type="number" id="max" min="1" max="20" value="4"></label>
+      <label>Language
+        <select id="lang">
+          <option value="">Detect automatically</option>
+          <option value="en">English</option><option value="es">Spanish</option><option value="fr">French</option>
+          <option value="de">German</option><option value="it">Italian</option><option value="pt">Portuguese</option>
+          <option value="nl">Dutch</option><option value="pl">Polish</option><option value="ru">Russian</option>
+          <option value="uk">Ukrainian</option><option value="tr">Turkish</option><option value="ar">Arabic</option>
+          <option value="hi">Hindi</option><option value="zh">Chinese</option><option value="ja">Japanese</option>
+          <option value="ko">Korean</option><option value="vi">Vietnamese</option><option value="sv">Swedish</option>
+        </select>
+      </label>
+      <label class="check"><input type="checkbox" id="diarize" checked> Separate speakers</label>
+      <label class="check"><input type="checkbox" id="translate"> Translate to English</label>
+    </div>
+    <button class="primary" id="start" disabled>Transcribe</button>
+    <div class="hint">Everything runs locally on your GPU. Files are kept in the history until you delete them.</div>
+  </div>
+</template>
+
+<script>
+const $ = (sel, root = document) => root.querySelector(sel);
+const api = (path, opts) => fetch(path, opts).then(async r => {
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
+  return r.status === 204 ? null : r.json();
+});
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const clock = t => { t = Math.max(0, Math.floor(t)); const h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60, s = t % 60;
+  return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(s).padStart(2, "0"); };
+const ago = ts => { const d = (Date.now() / 1000 - ts); return d < 60 ? "just now" : d < 3600 ? Math.floor(d / 60) + " min ago" :
+  d < 86400 ? Math.floor(d / 3600) + " h ago" : new Date(ts * 1000).toLocaleDateString(); };
+const colorOf = (spk, speakers) => `var(--s${(speakers.indexOf(spk) % 8) + 1})`;
+
+let current = null, pollTimer = null, ready = false;
+
+// ---- status -----------------------------------------------------------------
+async function pollStatus() {
+  try {
+    const s = await api("/api/status");
+    const el = $("#status"), txt = $("#status-text");
+    ready = s.ready;
+    if (s.error) { el.className = "error"; txt.textContent = "model load failed — see terminal"; txt.title = s.error; }
+    else if (s.ready) { el.className = "ready";
+      txt.textContent = `${s.device || "ready"} · ${s.whisper.split("/").pop()}` + (s.diarization ? ` · ${s.diarization.split("/").pop()}` : "");
+      txt.title = ""; }
+    else { el.className = "loading"; txt.textContent = s.loading || "loading models…"; }
+  } catch { $("#status").className = "error"; $("#status-text").textContent = "server not reachable"; }
+  setTimeout(pollStatus, ready ? 15000 : 1500);
+}
+
+// ---- history ----------------------------------------------------------------
+async function loadHistory() {
+  const list = await api("/api/jobs").catch(() => []);
+  const ul = $("#history");
+  ul.innerHTML = list.length ? "" : '<li class="empty">No transcriptions yet.</li>';
+  for (const j of list) {
+    const li = document.createElement("li");
+    li.className = j.id === current ? "active" : "";
+    const state = j.status === "done" ? `${clock(j.duration)} · ${j.speakers ? j.speakers + " speaker" + (j.speakers > 1 ? "s" : "") : "no diarization"}`
+      : j.status === "error" ? '<span class="err">failed</span>' : esc(j.stage || j.status) + "…";
+    li.innerHTML = `<div class="name">${esc(j.filename)}</div><div class="meta">${state} · ${ago(j.created)}</div>`;
+    li.onclick = () => openJob(j.id);
+    ul.appendChild(li);
+  }
+  return list;
+}
+
+// ---- upload -----------------------------------------------------------------
+function showUpload() {
+  current = null; clearTimeout(pollTimer); history.replaceState(null, "", "/");
+  const main = $("#main");
+  main.replaceChildren($("#upload-tpl").content.cloneNode(true));
+  loadHistory();
+  let file = null;
+  const drop = $("#drop"), input = $("#file"), start = $("#start");
+  const pick = f => { file = f; $("#file-name").textContent = f ? `${f.name} (${(f.size / 1048576).toFixed(1)} MB)` : ""; start.disabled = !f; };
+  drop.onclick = () => input.click();
+  input.onchange = () => pick(input.files[0]);
+  drop.ondragover = e => { e.preventDefault(); drop.classList.add("over"); };
+  drop.ondragleave = () => drop.classList.remove("over");
+  drop.ondrop = e => { e.preventDefault(); drop.classList.remove("over"); if (e.dataTransfer.files[0]) pick(e.dataTransfer.files[0]); };
+  const mode = $("#spk-mode"), dia = $("#diarize");
+  const sync = () => { const m = dia.checked ? mode.value : "none"; mode.disabled = !dia.checked;
+    $("#spk-exact").hidden = m !== "exact"; $("#spk-min").hidden = $("#spk-max").hidden = m !== "range"; };
+  mode.onchange = dia.onchange = sync; sync();
+
+  start.onclick = () => {
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("diarize", dia.checked ? "1" : "0");
+    fd.append("language", $("#lang").value);
+    fd.append("translate", $("#translate").checked ? "1" : "0");
+    if (dia.checked && mode.value === "exact") fd.append("num_speakers", $("#num").value);
+    if (dia.checked && mode.value === "range") { fd.append("min_speakers", $("#min").value); fd.append("max_speakers", $("#max").value); }
+    start.disabled = true;
+    // XHR rather than fetch so we can show upload progress for big files.
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/jobs");
+    xhr.upload.onprogress = e => { if (e.lengthComputable) start.textContent = `Uploading ${Math.round(100 * e.loaded / e.total)}%`; };
+    xhr.onload = () => {
+      if (xhr.status === 201) openJob(JSON.parse(xhr.responseText).id);
+      else { start.disabled = false; start.textContent = "Transcribe"; alertBox(JSON.parse(xhr.responseText || "{}").error || "upload failed"); }
+    };
+    xhr.onerror = () => { start.disabled = false; start.textContent = "Transcribe"; alertBox("upload failed"); };
+    xhr.send(fd);
+  };
+}
+
+function alertBox(msg) {
+  const d = document.createElement("div");
+  d.className = "error-box"; d.style.marginTop = "12px"; d.textContent = msg;
+  $("#main .card").appendChild(d);
+}
+
+// ---- job view ---------------------------------------------------------------
+async function openJob(id) {
+  current = id; clearTimeout(pollTimer);
+  history.replaceState(null, "", "#" + id);
+  loadHistory();
+  let job;
+  try { job = await api("/api/jobs/" + id); } catch { return showUpload(); }
+  if (current !== id) return;
+  if (job.status === "done") return renderTranscript(job);
+  renderProgress(job);
+  pollTimer = setTimeout(() => openJob(id), 1000);
+}
+
+function header(job, extra = "") {
+  const opts = job.options || {};
+  const bits = [];
+  if (job.result) bits.push(clock(job.result.duration), job.result.language && `language: ${job.result.language}`);
+  if (opts.task === "translate") bits.push("translated to English");
+  if (job.elapsed && job.result) bits.push(`took ${job.elapsed.toFixed(1)}s (${Math.round(job.result.duration / job.elapsed)}× real-time)`);
+  return `<div class="jobhead"><div><h2>${esc(job.filename)}</h2><div class="sub">${bits.filter(Boolean).map(esc).join(" · ")}</div></div>
+    <div class="actions">${extra}<button class="ghost danger" id="del">Delete</button></div></div>`;
+}
+
+function bindDelete(job) {
+  $("#del").onclick = async () => {
+    const btn = $("#del");
+    if (btn.dataset.confirm !== "1") { btn.dataset.confirm = "1"; btn.textContent = "Click again to delete"; return; }
+    try { await api("/api/jobs/" + job.id, { method: "DELETE" }); showUpload(); }
+    catch (e) { btn.textContent = e.message; }
+  };
+}
+
+function renderProgress(job) {
+  const main = $("#main");
+  const pct = job.progress == null ? null : Math.round(job.progress * 100);
+  if (job.status === "error") {
+    main.innerHTML = `<div class="card">${header(job)}<div class="error-box">${esc(job.error || "failed")}</div></div>`;
+    return bindDelete(job);
+  }
+  const stage = job.status === "queued" ? (ready ? "waiting in queue…" : "waiting for models to load…") : job.stage;
+  if ($("#prog-card")?.dataset.id !== job.id) {
+    main.innerHTML = `<div class="card" id="prog-card" data-id="${job.id}">${header(job)}<div class="progress"><div></div></div><div class="stage"></div></div>`;
+    bindDelete(job);
+  }
+  $(".progress").classList.toggle("indeterminate", pct == null);
+  $(".progress div").style.width = pct == null ? "" : pct + "%";
+  $(".stage").textContent = stage + (pct == null ? "" : ` — ${pct}%`);
+}
+
+function paragraphs(segments) {
+  const out = [];
+  for (const s of segments) {
+    const last = out[out.length - 1];
+    if (last && last.speaker === s.speaker && s.start - last.end < 3 && (s.speaker || s.end - last.start < 30)) { last.segs.push(s); last.end = s.end; }
+    else out.push({ speaker: s.speaker, start: s.start, end: s.end, segs: [s] });
+  }
+  return out;
+}
+
+function renderTranscript(job) {
+  const r = job.result, names = job.names || {};
+  const name = spk => names[spk] || spk;
+  const fmts = ["txt", "srt", "vtt", "md", "json"];
+  const downloads = fmts.map(f => `<a class="ghost" href="/api/jobs/${job.id}/download/${f}" download>.${f}</a>`).join("");
+  const talk = {};
+  for (const s of r.segments) talk[s.speaker] = (talk[s.speaker] || 0) + (s.end - s.start);
+  const chips = r.speakers.map(spk => `<label class="chip" title="Click the name to rename this speaker">
+      <span class="sw" style="background:${colorOf(spk, r.speakers)}"></span>
+      <input data-spk="${esc(spk)}" value="${esc(name(spk))}" size="${Math.max(6, name(spk).length)}">
+      <span class="stat">${clock(talk[spk] || 0)}</span></label>`).join("");
+
+  $("#main").innerHTML = `${header(job, downloads)}
+    <div class="player"><audio id="audio" controls preload="metadata" src="/api/jobs/${job.id}/audio"></audio></div>
+    <div class="speakers">${chips}<input class="search" id="search" placeholder="Search transcript…" type="search"></div>
+    <div class="transcript" id="transcript"></div>
+    <div class="timings">${Object.entries(r.timings || {}).map(([k, v]) => `${k} ${v}s`).join(" · ")}</div>`;
+  bindDelete(job);
+
+  const box = $("#transcript");
+  const spans = [];
+  for (const p of paragraphs(r.segments)) {
+    const div = document.createElement("div");
+    div.className = "para";
+    div.innerHTML = `<div>${p.speaker ? `<div class="who" data-spk="${esc(p.speaker)}" style="color:${colorOf(p.speaker, r.speakers)}">${esc(name(p.speaker))}</div>` : ""}
+      <span class="when" data-t="${p.start}">${clock(p.start)}</span></div><div class="text"></div>`;
+    const text = $(".text", div);
+    p.segs.forEach((s, i) => {
+      const sp = document.createElement("span");
+      sp.textContent = s.text; sp.dataset.t = s.start; sp.dataset.end = s.end; sp.dataset.raw = s.text;
+      text.append(sp, i < p.segs.length - 1 ? " " : "");
+      spans.push(sp);
+    });
+    box.appendChild(div);
+  }
+
+  const audio = $("#audio");
+  box.onclick = e => { const t = e.target.closest("[data-t]"); if (t) { audio.currentTime = +t.dataset.t; audio.play(); } };
+  let lastNow = null;
+  audio.ontimeupdate = () => {
+    const t = audio.currentTime;
+    let lo = 0, hi = spans.length - 1, hit = null;
+    while (lo <= hi) { const mid = (lo + hi) >> 1; if (+spans[mid].dataset.t <= t) { hit = spans[mid]; lo = mid + 1; } else hi = mid - 1; }
+    if (hit && t > +hit.dataset.end + 0.5) hit = null;
+    if (hit !== lastNow) {
+      lastNow?.classList.remove("now"); hit?.classList.add("now"); lastNow = hit;
+      if (hit && !audio.paused) { const r = hit.getBoundingClientRect(); if (r.top < 140 || r.bottom > innerHeight - 40) hit.scrollIntoView({ block: "center", behavior: "smooth" }); }
+    }
+  };
+
+  let saveTimer;
+  for (const input of document.querySelectorAll(".chip input")) {
+    input.oninput = () => {
+      const spk = input.dataset.spk, v = input.value.trim();
+      input.size = Math.max(6, input.value.length);
+      if (v) names[spk] = v; else delete names[spk];
+      document.querySelectorAll(`.who[data-spk="${CSS.escape(spk)}"]`).forEach(el => el.textContent = v || spk);
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => api(`/api/jobs/${job.id}/names`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(names) }), 400);
+    };
+    input.onkeydown = e => { if (e.key === "Enter") input.blur(); };
+  }
+
+  $("#search").oninput = e => {
+    const q = e.target.value.trim().toLowerCase();
+    for (const para of box.children) {
+      let any = !q;
+      for (const sp of para.querySelectorAll(".text span")) {
+        const raw = sp.dataset.raw, i = q ? raw.toLowerCase().indexOf(q) : -1;
+        if (i >= 0) { any = true; sp.innerHTML = esc(raw.slice(0, i)) + "<mark>" + esc(raw.slice(i, i + q.length)) + "</mark>" + esc(raw.slice(i + q.length)); }
+        else sp.textContent = raw;
+      }
+      para.classList.toggle("hidden", !any);
+    }
+  };
+}
+
+// ---- boot -------------------------------------------------------------------
+$("#new-btn").onclick = showUpload;
+pollStatus();
+setInterval(loadHistory, 4000);
+const fromHash = location.hash.slice(1);
+if (/^[0-9a-f]{32}$/.test(fromHash)) openJob(fromHash); else showUpload();
+</script>
+</body>
+</html>
